@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ايجي توك">
+<meta name="theme-color" content="#1877f2">
+<title>ايجي توك</title>
+<style>
+  html,body{margin:0;height:100%;background:#1877f2;color:#fff;font-family:-apple-system,"Segoe UI",Tahoma,sans-serif}
+  .w{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px}
+  h1{font-size:34px;margin:0 0 12px}
+  p{margin:6px 0;font-size:17px;opacity:.95}
+  .s{width:34px;height:34px;border:4px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:r 1s linear infinite;margin:18px 0}
+  @keyframes r{to{transform:rotate(360deg)}}
+  button{margin-top:16px;padding:10px 22px;font-size:16px;border:0;border-radius:10px;background:#fff;color:#1877f2}
+</style>
+</head>
+<body>
+<div class="w">
+  <h1>ايجي توك</h1>
+  <div class="s"></div>
+  <p id="m">جاري الاتصال...</p>
+  <button id="b" style="display:none" onclick="go()">إعادة المحاولة</button>
+</div>
+<script>
+var RAW = "https://raw.githubusercontent.com/abosarhan14/abosarhan-config/main/current_url.txt";
+var tries = 0, MAX = 18;
+function say(t){ document.getElementById("m").textContent = t; }
+function go(){
+  document.getElementById("b").style.display = "none";
+  tries = 0; say("جاري الاتصال..."); step();
+}
+function step(){
+  tries++;
+  fetch(RAW + "?t=" + Date.now(), {cache: "no-store"})
+    .then(function(r){ return r.text(); })
+    .then(function(t){
+      var m = t.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);
+      if(!m) throw 0;
+      var base = m[0];
+      // نتأكد إن الرابط شغال قبل التحويل
+      return fetch(base + "/abosarhan_chat/login.php", {mode: "no-cors", cache: "no-store"})
+        .then(function(){ say("تم... جاري الفتح"); location.replace(base + "/abosarhan_chat/"); });
+    })
+    .catch(function(){
+      if(tries >= MAX){
+        say("السيرفر مش متاح دلوقتي. جرّب بعد شوية.");
+        document.getElementById("b").style.display = "inline-block";
+      } else {
+        say("السيرفر بيتجهز... محاولة " + tries);
+        setTimeout(step, 5000);
+      }
+    });
+}
+step();
+</script>
+</body>
+</html>
