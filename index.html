@@ -42,7 +42,7 @@ function step(){
       var base = m[0];
       // نتأكد إن الرابط شغال قبل التحويل
       return fetch(base + "/abosarhan_chat/login.php", {mode: "no-cors", cache: "no-store"})
-        .then(function(){ say("تم... جاري الفتح"); location.replace(base + "/abosarhan_chat/"); });
+        .then(function(){ say("تم... جاري الفتح"); var m = location.search.match(/[?&]ref=(\d+)/); location.replace(base + "/abosarhan_chat/" + (m ? "register.php?ref=" + m[1] : "")); });
     })
     .catch(function(){
       if(tries >= MAX){
