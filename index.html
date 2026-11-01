@@ -2,65 +2,81 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="ايجي توك">
-<meta name="theme-color" content="#1877f2">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ايجي توك</title>
 <style>
-  html,body{margin:0;height:100%;background:#1877f2;color:#fff;font-family:-apple-system,"Segoe UI",Tahoma,sans-serif}
-  .w{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px}
-  h1{font-size:34px;margin:0 0 12px}
-  p{margin:6px 0;font-size:17px;opacity:.95}
-  .s{width:34px;height:34px;border:4px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:r 1s linear infinite;margin:18px 0}
-  @keyframes r{to{transform:rotate(360deg)}}
-  button{margin-top:16px;padding:10px 22px;font-size:16px;border:0;border-radius:10px;background:#fff;color:#1877f2}
+html,body{height:100%;margin:0}
+body{display:flex;align-items:center;justify-content:center;background:#1e6fe8;color:#fff;font-family:system-ui,Tahoma,sans-serif;text-align:center}
+.b{padding:24px}
+.sp{width:46px;height:46px;border:5px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;margin:0 auto 18px;animation:r 1s linear infinite}
+@keyframes r{to{transform:rotate(360deg)}}
+h1{font-size:22px;margin:0 0 8px}#s{opacity:.85;font-size:15px}
+button{display:none;margin-top:18px;padding:10px 24px;border:0;border-radius:10px;font-size:16px;background:#fff;color:#1e6fe8}
 </style>
 </head>
 <body>
-<div class="w">
+<div class="b">
+  <div class="sp" id="sp"></div>
   <h1>ايجي توك</h1>
-  <div class="s"></div>
-  <p id="m">جاري الاتصال...</p>
-  <button id="b" style="display:none" onclick="go()">إعادة المحاولة</button>
+  <div id="s">جاري الاتصال...</div>
+  <button id="rt" onclick="location.reload()">إعادة المحاولة</button>
 </div>
 <script>
-var RAW = "https://raw.githubusercontent.com/abosarhan14/abosarhan-config/main/current_url.txt";
-var tries = 0, MAX = 18;
-function say(t){ document.getElementById("m").textContent = t; }
-function go(){
-  document.getElementById("b").style.display = "none";
-  tries = 0; say("جاري الاتصال..."); step();
-}
-function step(){
-  tries++;
-  fetch(RAW + "?t=" + Date.now(), {cache: "no-store"})
-    .then(function(r){ return r.text(); })
-    .then(function(t){
-      var m = t.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);
-      if(!m) throw 0;
-      var base = m[0];
-      // نتأكد إن السيرفر شغّال فعلاً (ping.php بيرد بـ CORS؛ صفحة خطأ Cloudflare مفيهاش ده فبتفشل)
-      return fetch(base + "/abosarhan_chat/ping.php?t=" + Date.now(), {cache: "no-store"})
-        .then(function(r){ return r.json(); })
-        .then(function(j){
-          if(!j || !j.ok) throw 0;
-          say("تم... جاري الفتح");
-          var m = location.search.match(/[?&]ref=(\d+)/);
-          location.replace(base + "/abosarhan_chat/" + (m ? "register.php?ref=" + m[1] : ""));
-        });
-    })
-    .catch(function(){
-      if(tries >= MAX){
-        say("السيرفر مش متاح دلوقتي. جرّب بعد شوية.");
-        document.getElementById("b").style.display = "inline-block";
-      } else {
-        say("السيرفر بيتجهز... محاولة " + tries);
-        setTimeout(step, 5000);
-      }
+(function(){
+  var RAW="https://raw.githubusercontent.com/abosarhan14/abosarhan-config/main/current_url.txt";
+  var KEY="egy_base", MAX=40, tries=0, done=false;
+  var m=location.search.match(/[?&]ref=(\d+)/);
+  var path="/abosarhan_chat/"+(m?"register.php?ref="+m[1]:"");
+  var st=document.getElementById("s");
+
+  function get(k){try{return localStorage.getItem(k)}catch(e){return null}}
+  function set(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+
+  function timeout(ms,p){return new Promise(function(res,rej){var t=setTimeout(function(){rej("t")},ms);p.then(function(v){clearTimeout(t);res(v)},function(e){clearTimeout(t);rej(e)})})}
+
+  function ping(base){
+    return timeout(6000,fetch(base+"/abosarhan_chat/ping.php?t="+Date.now(),{cache:"no-store"}))
+      .then(function(r){return r.json()})
+      .then(function(j){if(j&&j.ok)return base;throw "no"});
+  }
+  function latest(){
+    return timeout(6000,fetch(RAW+"?t="+Date.now(),{cache:"no-store"}))
+      .then(function(r){return r.text()})
+      .then(function(t){var x=t.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);if(!x)throw "nourl";return x[0]});
+  }
+  function go(base){
+    if(done)return;done=true;set(KEY,base);
+    st.textContent="تم! جاري الفتح...";
+    location.replace(base+path);
+  }
+  // first success wins
+  function any(list){
+    return new Promise(function(res,rej){
+      var n=list.length,fails=0;
+      list.forEach(function(p){p.then(res,function(){if(++fails===n)rej()})});
     });
-}
-step();
+  }
+
+  function attempt(){
+    if(done)return;
+    tries++;
+    var cached=get(KEY);
+    var jobs=[];
+    if(cached)jobs.push(ping(cached));                 // آخر رابط شغّال (سريع)
+    jobs.push(latest().then(ping));                    // الرابط الحالي من GitHub
+    any(jobs).then(go,function(){
+      if(tries>=MAX){
+        document.getElementById("sp").style.display="none";
+        st.textContent="تعذّر الاتصال بالمنصة الآن";
+        document.getElementById("rt").style.display="inline-block";
+        return;
+      }
+      st.textContent="جاري الاتصال... محاولة "+tries;
+      setTimeout(attempt,3000);
+    });
+  }
+  attempt();
+})();
 </script>
 </body>
 </html>
