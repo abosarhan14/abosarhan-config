@@ -40,9 +40,15 @@ function step(){
       var m = t.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);
       if(!m) throw 0;
       var base = m[0];
-      // نتأكد إن الرابط شغال قبل التحويل
-      return fetch(base + "/abosarhan_chat/login.php", {mode: "no-cors", cache: "no-store"})
-        .then(function(){ say("تم... جاري الفتح"); var m = location.search.match(/[?&]ref=(\d+)/); location.replace(base + "/abosarhan_chat/" + (m ? "register.php?ref=" + m[1] : "")); });
+      // نتأكد إن السيرفر شغّال فعلاً (ping.php بيرد بـ CORS؛ صفحة خطأ Cloudflare مفيهاش ده فبتفشل)
+      return fetch(base + "/abosarhan_chat/ping.php?t=" + Date.now(), {cache: "no-store"})
+        .then(function(r){ return r.json(); })
+        .then(function(j){
+          if(!j || !j.ok) throw 0;
+          say("تم... جاري الفتح");
+          var m = location.search.match(/[?&]ref=(\d+)/);
+          location.replace(base + "/abosarhan_chat/" + (m ? "register.php?ref=" + m[1] : ""));
+        });
     })
     .catch(function(){
       if(tries >= MAX){
