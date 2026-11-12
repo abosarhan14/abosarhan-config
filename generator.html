@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#1B7F3B">
+<title>أكواد تفعيل أبو سرحان</title>
+<style>
+:root{--g:#1B7F3B;--d:#0F4D23;--y:#F2B705;--bg:#F4FAF6;--t:#14231a;--c:#fff;--b:#d6e6db;--r:#b3261e}
+@media(prefers-color-scheme:dark){:root{--bg:#0e1a12;--t:#e6f2ea;--c:#16261c;--b:#274433}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--t);font:16px/1.5 "Segoe UI",Tahoma,Arial,sans-serif}
+header{background:var(--g);color:#fff;padding:14px 16px;font-weight:700;font-size:18px;border-bottom:4px solid var(--y)}
+main{max-width:640px;margin:0 auto;padding:12px 16px 60px}
+.card{background:var(--c);border:1px solid var(--b);border-radius:12px;padding:14px;margin:12px 0}
+input,button{font:inherit;border-radius:10px;border:1px solid var(--b);padding:10px 12px}
+input{width:100%;background:var(--bg);color:var(--t)}
+button{background:var(--g);color:#fff;border:0;font-weight:700;cursor:pointer}
+button.alt{background:transparent;color:var(--g);border:1px solid var(--g)}
+button.red{background:var(--r)}
+button.sm{padding:6px 10px;font-size:13px}
+.row{display:flex;gap:8px;margin:8px 0}.row>*{flex:1}
+.code{font:700 20px/1.2 Consolas,monospace;letter-spacing:1px;direction:ltr;text-align:center;padding:8px;background:var(--bg);border-radius:8px;user-select:all}
+.badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:13px;font-weight:700}
+.free{background:#e8f5e9;color:#1b5e20}.used{background:#fff3cd;color:#7a5b00}.dead{background:#fde7e7;color:#b3261e}.wait{background:#e3f2fd;color:#0d47a1}
+small{color:#6b7f72}#msg{position:fixed;bottom:12px;left:12px;right:12px;background:var(--d);color:#fff;padding:10px 14px;border-radius:10px;display:none;text-align:center}
+.item{border-top:1px solid var(--b);padding:10px 0}
+</style>
+</head>
+<body>
+<header>🔑 أكواد تفعيل أبو سرحان داونلود مانجر</header>
+<main>
+  <div class="card" id="setup">
+    <b>الإعداد (مرة واحدة)</b>
+    <p><small>اكتب كلمة سر الأدمن (ADMIN_TOKEN من ملف config.php). بتتحفظ على التليفون ده بس.</small></p>
+    <input id="tok" type="password" placeholder="كلمة سر الأدمن" autocomplete="off">
+    <details style="margin-top:8px"><summary><small>عنوان السيرفر (اختياري)</small></summary>
+      <input id="srv" placeholder="سيب فاضي = تلقائي من GitHub" style="margin-top:6px;direction:ltr">
+      <input id="cfg" placeholder="رابط current_url.txt" style="margin-top:6px;direction:ltr">
+    </details>
+    <div class="row"><button onclick="saveSetup()">حفظ</button></div>
+  </div>
+
+  <div class="card">
+    <b>كود جديد</b>
+    <div class="row"><input id="note" placeholder="اسم العميل / ملاحظة (اختياري)"></div>
+    <div class="row"><button onclick="gen()">➕ ولّد كود</button></div>
+    <div id="fresh"></div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="align-items:center">
+      <b style="flex:2">الأكواد</b>
+      <button class="alt sm" onclick="sync(true)">🔄 مزامنة</button>
+    </div>
+    <div id="srvstate"><small>جاري الاتصال بالسيرفر…</small></div>
+    <div id="list"></div>
+  </div>
+</main>
+<div id="msg"></div>
+
+<script>
+const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const DEF_CFG='https://raw.githubusercontent.com/abosarhan14/abosarhan-config/main/current_url.txt';
+const $=id=>document.getElementById(id);
+const get=(k,d='')=>{try{return localStorage.getItem(k)??d}catch(e){return d}};
+const put=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
+let ledger=[]; try{ledger=JSON.parse(get('ledger','[]'))}catch(e){}
+let remote={}, online=false;
+
+function toast(t){const m=$('msg');m.textContent=t;m.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>m.style.display='none',2500)}
+const fmt=c=>c.match(/.{4}/g).join('-');
+function save(){put('ledger',JSON.stringify(ledger))}
+
+function saveSetup(){
+  put('tok',$('tok').value.trim()); put('srv',$('srv').value.trim()); put('cfg',$('cfg').value.trim());
+  toast('تم الحفظ'); sync(true);
+}
+$('tok').value=get('tok'); $('srv').value=get('srv'); $('cfg').value=get('cfg');
+if(get('tok')) $('setup').querySelector('details').open=false;
+
+function gen(){
+  const b=new Uint8Array(16); crypto.getRandomValues(b);
+  let c=''; for(const x of b) c+=A[x&31];
+  const it={code:c,note:$('note').value.trim(),created:Math.floor(Date.now()/1000),synced:false};
+  ledger.unshift(it); save(); $('note').value='';
+  $('fresh').innerHTML=`<div class="code">${fmt(c)}</div><div class="row"><button onclick="cp('${c}')">📋 نسخ</button><button class="alt" onclick="share('${c}')">📤 إرسال</button></div>`;
+  render(); sync(false);
+}
+function cp(c){navigator.clipboard?.writeText(fmt(c)).then(()=>toast('تم النسخ'),()=>toast(fmt(c)))}
+function share(c){const t='كود تفعيل برنامج أبو سرحان داونلود مانجر:\n'+fmt(c);
+  if(navigator.share) navigator.share({text:t}).catch(()=>{}); else window.open('https://wa.me/?text='+encodeURIComponent(t))}
+
+async function base(){
+  let s=get('srv'); if(s) return new URL(s).origin;
+  if(location.protocol.startsWith('http') && /\/activation\//.test(location.pathname) && !/github\.io|githubusercontent/.test(location.host)) return location.origin;
+  const r=await fetch(get('cfg')||DEF_CFG,{cache:'no-store'}); const t=(await r.text()).trim().split(/\s+/)[0];
+  return new URL(t).origin;
+}
+async function api(action,data){
+  const b=await base();
+  const url=(location.origin===b?location.pathname.replace(/[^/]*$/,''):b+'/activation/')+'api.php?action='+action;
+  const r=await fetch(url,{method:'POST',headers:{'X-Token':get('tok'),'Content-Type':'application/json'},body:JSON.stringify(data||{})});
+  if(r.status===401) throw new Error('كلمة السر غلط');
+  return r.json();
+}
+async function sync(manual){
+  if(!get('tok')){ if(manual) toast('اكتب كلمة سر الأدمن الأول'); return; }
+  try{
+    const pend=ledger.filter(x=>!x.synced);
+    if(pend.length){ await api('sync',{codes:pend}); pend.forEach(x=>x.synced=true); save(); }
+    const l=await api('list'); online=true; remote={};
+    for(const r of l.codes){ remote[r.code]=r;
+      if(!ledger.some(x=>x.code===r.code)) ledger.push({code:r.code,note:r.note,created:r.created,synced:true}); }
+    ledger.sort((a,b)=>b.created-a.created); save();
+    $('srvstate').innerHTML='<small>🟢 السيرفر شغّال ومتزامن</small>';
+    if(manual) toast('تمت المزامنة');
+  }catch(e){
+    online=false;
+    $('srvstate').innerHTML='<small>🔴 السيرفر مقفول أو مش متاح ('+(e.message||'')+'). الأكواد محفوظة عندك وهتتزامن لما يشتغل.</small>';
+    if(manual) toast('السيرفر مش متاح دلوقتي');
+  }
+  render();
+}
+async function act(a,code){
+  if(a==='unbind'&&!confirm('فك ربط الكود؟ هيتفعّل على جهاز جديد، والجهاز القديم هيتقفل.')) return;
+  if(a==='delete'&&!confirm('حذف الكود نهائيًا؟')) return;
+  try{ await api(a,{code}); if(a==='delete') ledger=ledger.filter(x=>x.code!==code); save(); await sync(false); toast('تم'); }
+  catch(e){ toast('السيرفر مش متاح'); }
+}
+function ago(t){if(!t)return'';const m=Math.floor((Date.now()/1000-t)/60);return m<60?m+' د':m<1440?Math.floor(m/60)+' س':Math.floor(m/1440)+' يوم'}
+function render(){
+  $('list').innerHTML=ledger.map(x=>{
+    const r=remote[x.code]; let b;
+    if(!r) b='<span class="badge wait">⏳ لم يُرفع للسيرفر</span>';
+    else if(r.revoked) b='<span class="badge dead">⛔ موقوف</span>';
+    else if(r.mid) b=`<span class="badge used">✔ مفعّل — آخر اتصال قبل ${ago(r.last_seen)}</span>`;
+    else b='<span class="badge free">متاح</span>';
+    const ops=r?`<div class="row">
+      ${r.mid?`<button class="alt sm" onclick="act('unbind','${x.code}')">فك الربط</button>`:''}
+      ${r.revoked?`<button class="alt sm" onclick="act('enable','${x.code}')">تفعيل</button>`:`<button class="alt sm" onclick="act('revoke','${x.code}')">إيقاف</button>`}
+      <button class="red sm" onclick="act('delete','${x.code}')">حذف</button></div>`:'';
+    return `<div class="item"><div class="code" onclick="cp('${x.code}')">${fmt(x.code)}</div>
+      <div>${b} <small>${x.note?'— '+x.note.replace(/</g,'&lt;'):''}</small></div>${r&&r.mid?`<small dir="ltr">${r.mid}</small>`:''}${ops}</div>`;
+  }).join('')||'<small>لسه مفيش أكواد</small>';
+}
+render(); sync(false); setInterval(()=>sync(false),30000);
+</script>
+</body>
+</html>
