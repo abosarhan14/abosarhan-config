@@ -44,6 +44,9 @@ small{color:#6b7f72}#msg{position:fixed;bottom:12px;left:12px;right:12px;backgro
   <div class="card">
     <b>كود جديد</b>
     <div class="row"><input id="note" placeholder="اسم العميل / ملاحظة (اختياري)"></div>
+    <div class="row" style="align-items:center"><small>المدة:</small>
+      <select id="dur" onchange="durChg()"><option value="180">6 شهور</option><option value="360" selected>سنة</option><option value="0">بدون انتهاء</option><option value="x">مدة أخرى…</option></select>
+      <input id="durx" type="number" min="1" max="3650" placeholder="عدد الأيام" style="display:none;width:110px"></div>
     <div class="row"><button onclick="gen()">➕ ولّد كود</button></div>
     <div id="fresh"></div>
   </div>
@@ -79,12 +82,21 @@ function saveSetup(){
 $('tok').value=get('tok'); $('srv').value=get('srv'); $('cfg').value=get('cfg');
 if(get('tok')) $('setup').querySelector('details').open=false;
 
+function durChg(){ $('durx').style.display=$('dur').value==='x'?'':'none'; }
+function pickDays(){ const v=$('dur').value; return v==='x'?Math.max(1,Math.min(3650,parseInt($('durx').value)||0)):parseInt(v); }
+function dtxt(d){ return !d?'بدون انتهاء':d===180?'6 شهور':d===360?'سنة':d+' يوم'; }
+async function setDays(code,cur){
+  const v=prompt('المدة بالأيام (180 = 6 شهور، 360 = سنة، 0 = بدون انتهاء):',cur||'');
+  if(v===null) return; const n=Math.max(0,Math.min(3650,parseInt(v)||0));
+  try{ await api('setdays',{code,days:n}); const it=ledger.find(x=>x.code===code); if(it) it.days=n; save(); await sync(false); toast('تم تغيير المدة'); }
+  catch(e){ toast('السيرفر مش متاح'); }
+}
 function gen(){
   const b=new Uint8Array(16); crypto.getRandomValues(b);
   let c=''; for(const x of b) c+=A[x&31];
-  const it={code:c,note:$('note').value.trim(),created:Math.floor(Date.now()/1000),synced:false};
+  const it={code:c,note:$('note').value.trim(),created:Math.floor(Date.now()/1000),days:pickDays(),synced:false};
   ledger.unshift(it); save(); $('note').value='';
-  $('fresh').innerHTML=`<div class="code">${fmt(c)}</div><div class="row"><button onclick="cp('${c}')">📋 نسخ</button><button class="alt" onclick="share('${c}')">📤 إرسال</button></div>`;
+  $('fresh').innerHTML=`<div class="code">${fmt(c)}</div><small>المدة: ${dtxt(it.days)}</small><div class="row"><button onclick="cp('${c}')">📋 نسخ</button><button class="alt" onclick="share('${c}')">📤 إرسال</button></div>`;
   render(); sync(false);
 }
 function cp(c){navigator.clipboard?.writeText(fmt(c)).then(()=>toast('تم النسخ'),()=>toast(fmt(c)))}
@@ -111,7 +123,7 @@ async function sync(manual){
     if(pend.length){ await api('sync',{codes:pend}); pend.forEach(x=>x.synced=true); save(); }
     const l=await api('list'); online=true; remote={};
     for(const r of l.codes){ remote[r.code]=r;
-      if(!ledger.some(x=>x.code===r.code)) ledger.push({code:r.code,note:r.note,created:r.created,synced:true}); }
+      if(!ledger.some(x=>x.code===r.code)) ledger.push({code:r.code,note:r.note,created:r.created,days:r.days||0,synced:true}); }
     ledger.sort((a,b)=>b.created-a.created); save();
     $('srvstate').innerHTML='<small>🟢 السيرفر شغّال ومتزامن</small>';
     if(manual) toast('تمت المزامنة');
@@ -139,9 +151,10 @@ function render(){
     const ops=r?`<div class="row">
       ${r.mid?`<button class="alt sm" onclick="act('unbind','${x.code}')">فك الربط</button>`:''}
       ${r.revoked?`<button class="alt sm" onclick="act('enable','${x.code}')">تفعيل</button>`:`<button class="alt sm" onclick="act('revoke','${x.code}')">إيقاف</button>`}
+      <button class="alt sm" onclick="setDays('${x.code}',${r.days||0})">المدة</button>
       <button class="red sm" onclick="act('delete','${x.code}')">حذف</button></div>`:'';
     return `<div class="item"><div class="code" onclick="cp('${x.code}')">${fmt(x.code)}</div>
-      <div>${b} <small>${x.note?'— '+x.note.replace(/</g,'&lt;'):''}</small></div>${r&&r.mid?`<small dir="ltr">${r.mid}</small>`:''}${ops}</div>`;
+      <div>${b} <small>⏱ ${dtxt(r?r.days:x.days)}</small> <small>${x.note?'— '+x.note.replace(/</g,'&lt;'):''}</small></div>${r&&r.mid?`<small dir="ltr">${r.mid}</small>`:''}${ops}</div>`;
   }).join('')||'<small>لسه مفيش أكواد</small>';
 }
 render(); sync(false); setInterval(()=>sync(false),30000);
