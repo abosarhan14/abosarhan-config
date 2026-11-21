@@ -51,12 +51,21 @@ small{color:#6b7f72}#msg{position:fixed;bottom:12px;left:12px;right:12px;backgro
     <div id="fresh"></div>
   </div>
 
+  <div class="card" id="vhead" style="display:none"><div class="row" style="align-items:center"><b id="vname" style="flex:3"></b><button class="alt sm" onclick="openCenter(0)">← الرجوع</button></div></div>
+  <div class="card" id="ccard">
+    <b>🏢 المراكز (صفحة أكواد لكل مركز)</b>
+    <div class="row"><input id="cname" placeholder="اسم المركز"></div>
+    <div class="row"><button onclick="centerAdd()">➕ إضافة مركز</button></div>
+    <div id="clist"></div>
+  </div>
+
   <div class="card">
     <div class="row" style="align-items:center">
       <b style="flex:2">الأكواد</b>
       <button class="alt sm" onclick="sync(true)">🔄 مزامنة</button>
     </div>
     <div id="srvstate"><small>جاري الاتصال بالسيرفر…</small></div>
+    <div class="row"><input id="q" type="search" placeholder="🔍 بحث: كود / ملاحظة / اسم مركز / رقم الجهاز" oninput="render();centers()" autocomplete="off"></div>
     <div id="list"></div>
   </div>
 </main>
@@ -69,7 +78,7 @@ const $=id=>document.getElementById(id);
 const get=(k,d='')=>{try{return localStorage.getItem(k)??d}catch(e){return d}};
 const put=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
 let ledger=[]; try{ledger=JSON.parse(get('ledger','[]'))}catch(e){}
-let remote={}, online=false;
+let remote={}, online=false, view=0, cmap={};
 
 function toast(t){const m=$('msg');m.textContent=t;m.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>m.style.display='none',2500)}
 const fmt=c=>c.match(/.{4}/g).join('-');
@@ -94,7 +103,7 @@ async function setDays(code,cur){
 function gen(){
   const b=new Uint8Array(16); crypto.getRandomValues(b);
   let c=''; for(const x of b) c+=A[x&31];
-  const it={code:c,note:$('note').value.trim(),created:Math.floor(Date.now()/1000),days:pickDays(),synced:false};
+  const it={code:c,note:$('note').value.trim(),created:Math.floor(Date.now()/1000),days:pickDays(),center:view,synced:false};
   ledger.unshift(it); save(); $('note').value='';
   $('fresh').innerHTML=`<div class="code">${fmt(c)}</div><small>المدة: ${dtxt(it.days)}</small><div class="row"><button onclick="cp('${c}')">📋 نسخ</button><button class="alt" onclick="share('${c}')">📤 إرسال</button></div>`;
   render(); sync(false);
@@ -123,7 +132,8 @@ async function sync(manual){
     if(pend.length){ await api('sync',{codes:pend}); pend.forEach(x=>x.synced=true); save(); }
     const l=await api('list'); online=true; remote={};
     for(const r of l.codes){ remote[r.code]=r;
-      if(!ledger.some(x=>x.code===r.code)) ledger.push({code:r.code,note:r.note,created:r.created,days:r.days||0,synced:true}); }
+      if(!ledger.some(x=>x.code===r.code)) ledger.push({code:r.code,note:r.note,created:r.created,days:r.days||0,center:r.center||0,synced:true});
+      else { const it=ledger.find(x=>x.code===r.code); it.center=r.center||0; } }
     ledger.sort((a,b)=>b.created-a.created); save();
     $('srvstate').innerHTML='<small>🟢 السيرفر شغّال ومتزامن</small>';
     if(manual) toast('تمت المزامنة');
@@ -142,7 +152,10 @@ async function act(a,code){
 }
 function ago(t){if(!t)return'';const m=Math.floor((Date.now()/1000-t)/60);return m<60?m+' د':m<1440?Math.floor(m/60)+' س':Math.floor(m/1440)+' يوم'}
 function render(){
-  $('list').innerHTML=ledger.map(x=>{
+  const q=($('q')?.value||'').trim().toLowerCase().replace(/-/g,'');
+  const hit=x=>{ const r=remote[x.code]||{}; return (x.code+' '+(x.note||'')+' '+(cmap[x.center]||'')+' '+(r.mid||'')).toLowerCase().includes(q); };
+  const rows=q?ledger.filter(hit):ledger.filter(x=>(x.center||0)===view);
+  $('list').innerHTML=rows.map(x=>{
     const r=remote[x.code]; let b;
     if(!r) b='<span class="badge wait">⏳ لم يُرفع للسيرفر</span>';
     else if(r.revoked) b='<span class="badge dead">⛔ موقوف</span>';
@@ -154,10 +167,36 @@ function render(){
       <button class="alt sm" onclick="setDays('${x.code}',${r.days||0})">المدة</button>
       <button class="red sm" onclick="act('delete','${x.code}')">حذف</button></div>`:'';
     return `<div class="item"><div class="code" onclick="cp('${x.code}')">${fmt(x.code)}</div>
-      <div>${b} <small>⏱ ${dtxt(r?r.days:x.days)}</small> <small>${x.note?'— '+x.note.replace(/</g,'&lt;'):''}</small></div>${r&&r.mid?`<small dir="ltr">${r.mid}</small>`:''}${ops}</div>`;
-  }).join('')||'<small>لسه مفيش أكواد</small>';
+      <div>${b} <small>⏱ ${dtxt(r?r.days:x.days)}</small> <small>${x.note?'— '+x.note.replace(/</g,'&lt;'):''}</small>${x.center&&cmap[x.center]?` <small>🏢 ${cmap[x.center].replace(/</g,'&lt;')}</small>`:''}</div>${r&&r.mid?`<small dir="ltr">${r.mid}</small>`:''}${ops}</div>`;
+  }).join('')||`<small>${q?'مفيش نتائج للبحث':'لسه مفيش أكواد'}</small>`;
 }
-render(); sync(false); setInterval(()=>sync(false),30000);
+async function centers(){
+  if(!get('tok')) return;
+  try{
+    const r=await api('center_list'); cmap={}; (r.centers||[]).forEach(c=>cmap[c.id]=c.name);
+    const cq=($('q')?.value||'').trim().toLowerCase();
+    $('clist').innerHTML=(r.centers||[]).filter(c=>!cq||c.name.toLowerCase().includes(cq)).map(c=>`<div class="item"><b>${c.name.replace(/</g,'&lt;')}</b>
+      <small>${c.last_used?'— آخر استخدام قبل '+ago(c.last_used):'— لسه ما اتستخدمش'}</small>
+      <small>— ${ledger.filter(x=>x.center===c.id).length} كود</small>
+      <div class="row"><button class="sm" onclick="openCenter(${c.id})">📂 صفحة الأكواد</button>
+      <button class="red sm" onclick="centerDel(${c.id})">حذف</button></div></div>`).join('')||'<small>لسه مفيش مراكز</small>';
+  }catch(e){ $('clist').innerHTML='<small>تعذر تحميل المراكز</small>'; }
+}
+function openCenter(id){
+  view=id; $('vhead').style.display=id?'':'none'; $('ccard').style.display=id?'none':'';
+  $('vname').textContent=id?'🏢 '+(cmap[id]||'مركز'):''; $('fresh').innerHTML=''; render(); window.scrollTo(0,0);
+}
+async function centerAdd(){
+  const name=$('cname').value.trim();
+  if(!name){ toast('اكتب اسم المركز'); return; }
+  try{ const r=await api('center_add',{name});
+    if(r.error){ toast('بيانات غلط'); return; }
+    $('cname').value=''; toast('تمت الإضافة'); centers(); }
+  catch(e){ toast('السيرفر مش متاح'); }
+}
+async function centerDel(id){ if(!confirm('حذف المركز ده؟ صاحبه مش هيقدر يغيّر الشعار بعد كده.')) return;
+  try{ await api('center_del',{id}); centers(); toast('تم'); } catch(e){ toast('السيرفر مش متاح'); } }
+render(); sync(false); centers(); setInterval(()=>sync(false),30000);
 </script>
 </body>
 </html>
